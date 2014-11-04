@@ -90,8 +90,8 @@ class YhTrieSeg:
                 for i in range(max(0, end - self.max_len), end):
                     logger.error(query[:end])
                     if(query[i:end] in self.dict_all):
-                        start = i
                         break
+                start = i
                 logger.error('%s\t%s' % (start, end))
                 s = query[start:end]
                 end = start
