@@ -1,0 +1,11 @@
+/txt
+/**/*.txt
+/**/*.bak
+/**/*.keyword
+/**/*.log
+/**/*.pyc
+/**/*.tar
+/**/*.tar.gz
+*.txt
+*.dict
+*~
