@@ -49,7 +49,7 @@ class YhTrieSeg:
         set_add = set()
         set_ulist=set(ulist)
         for i, s in enumerate(list_seg):
-            logger.error(s)
+            #logger.error(s)
             if len(s)>=2:
                 if s[0] in set_ulist:
                     if len(s[1:])>=2 and s[1:] in self.dict_all:
