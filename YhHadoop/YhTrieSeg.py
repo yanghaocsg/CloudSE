@@ -97,7 +97,7 @@ class YhTrieSeg:
                 end = start
                 if s: list_res.append(s)
             logger.error('end %s|%s' % (end, query[:end]))
-            if query[:end+1]:   list_res.append(query[:end])
+            if query[:end]:   list_res.append(query[:end])
             list_res.reverse()
             list_res = self.presuffix(list_res)
             list_res = self.clue(list_res)
