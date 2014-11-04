@@ -8,15 +8,16 @@ from bson.binary import Binary
 import string
 from unipath import Path
 
-#self module
-sys.path.append('/data/CloudSE/YhHadoop')
-import YhLog, YhCompress, YhMongo, YhCrawler
+
+import YhLog, YhCompress, YhMongo, YhCrawler, YhTrieSeg
 
 
 logger = logging.getLogger(__name__)
 mongo = YhMongo.yhMongo.mongo_cli
+cwd = Path(__file__).absolute().ancestor(1)
+yhTrieSeg = YhTrieSeg.YhTrieSeg([Path(cwd, '../data/tag_120ask.txt')])
 
-class TagBuilder(object):
+class Segmenter(object):
     def __init__(self, company='120ask', db='tag'):
         self.cwd = Path(__file__).absolute().ancestor(1)
         self.company = company
