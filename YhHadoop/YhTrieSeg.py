@@ -72,7 +72,7 @@ class YhTrieSeg:
         set_ulist = set(ulist)
         set_add = set()
         for i, s in enumerate(list_seg):
-            logger.error(s)
+            #logger.error(s)
             if i>=1:
                 if s[0] in set_ulist and list_seg[i-1][-1] in set_ulist:
                     set_add.add(list_seg[i-1]+s)
@@ -86,20 +86,18 @@ class YhTrieSeg:
             end = len(query)
             
             while(end >=2):
-                start = 0
                 for i in range(max(0, end - self.max_len), end):
                     logger.error(query[:end])
                     if(query[i:end] in self.dict_all):
                         break
-                start = i
-                logger.error('%s\t%s' % (start, end))
-                s = query[start:end]
-                end = start
+                s = query[i:end]
+                end = i
                 if s: list_res.append(s)
             logger.error('end %s|%s' % (end, query[:end]))
             if query[:end]:   list_res.append(query[:end])
             list_res.reverse()
             list_res = self.presuffix(list_res)
+            list_res = self.clue(list_res)
             list_res = self.clue(list_res)
             logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
             return list_res
