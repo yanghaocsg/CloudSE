@@ -68,14 +68,24 @@ class YhTrieSeg:
         logger.error('presuffix %s' % '|'.join(list_seg))
         return list_seg + list(set_add)
     
-    def clue(self, list_seg=[], ulist= u'第一二三四五六七八九十零'):
+    def clue(self, list_seg=[], ulist= u'第一二三四五六七八九十零1234567890年月日'):
         set_ulist = set(ulist)
         set_add = set()
-        for i, s in enumerate(list_seg):
-            #logger.error(s)
-            if i>=1:
-                if s[0] in set_ulist and list_seg[i-1][-1] in set_ulist:
-                    set_add.add(list_seg[i-1]+s)
+        len_seg = len(list_seg)
+        i = 0
+        while i < len_seg:
+            if list_seg[i] and list_seg[i][-1] in set_ulist:
+                j = i+1
+                while j < len_seg:
+                    if  list_seg[j] and list_seg[j][0] in set_ulist:
+                        j += 1
+                    else:
+                        break
+                if j - i >=2:
+                    set_add.add(''.join(list_seg[i:j]))
+                i = j
+            else:
+                i += 1
         return list_seg + list(set_add)
                 
     def right_match(self, query):
@@ -85,19 +95,32 @@ class YhTrieSeg:
             list_res = []
             end = len(query)
             
-            while(end >=2):
+            while(end >= 2):
                 for i in range(max(0, end - self.max_len), end):
-                    logger.error(query[:end])
+                    #logger.error(query[:end])
                     if(query[i:end] in self.dict_all):
                         break
                 s = query[i:end]
+                
+                if s in self.dict_all: 
+                    list_res.append(s)
+                elif YhChineseNorm.is_number_alphabet(s):
+                    j = i
+                    while j >= 0:
+                        if YhChineseNorm.is_number_alphabet(query[j]):
+                            j -= 1
+                        else:
+                            break
+                    list_res.append(query[j+1:end])
+                    i = j+1
+                elif not YhChineseNorm.is_other(s):
+                    list_res.append(s)
                 end = i
-                if s: list_res.append(s)
-            logger.error('end %s|%s' % (end, query[:end]))
-            if query[:end]:   list_res.append(query[:end])
+                
+            if end > 0 and query[:end] and not YhChineseNorm.is_other(query):
+                list_res.append(query[:end])
             list_res.reverse()
             list_res = self.presuffix(list_res)
-            list_res = self.clue(list_res)
             list_res = self.clue(list_res)
             logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
             return list_res

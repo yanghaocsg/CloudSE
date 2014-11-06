@@ -18,16 +18,18 @@ cwd = Path(__file__).absolute().ancestor(1)
 yhTrieSeg = YhTrieSeg.YhTrieSeg([Path(cwd, '../data/tag_120ask.txt')])
 
 class Segmenter(object):
-    def __init__(self, company='120ask', db='tag'):
+    def __init__(self, company='120ask', db='urlcontent'):
         self.cwd = Path(__file__).absolute().ancestor(1)
         self.company = company
         self.db = mongo[db]
         self.collection = self.db[company]
-        self.collection.ensure_index([('tag', 1)], unique=True,  background=True, dropDups =True)
-        self.ofh_tag = open(Path(self.cwd, 'tag_%s.txt' % company), 'w+')
+            
     def process(self):
         try:
-            datas = self.collection.find({})
+            list_data = self.collection.find({},skip=0, limit=100)
+            logger.error('\n'.join(list_data))
+            while start < len_data:
+                list_tmp = self.collecton.find({}).
             pass
         except:
             logger.error(traceback.format_exc())

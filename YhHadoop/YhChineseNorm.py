@@ -33,7 +33,7 @@ def is_alphabet(uchar):
             return False
 
 def is_number_alphabet(uchar):
-    return is_number(uchar) or is_alphabet(uchar)
+    return is_number(uchar) or is_alphabet(uchar) or uchar =='.'
     
 def is_other(uchar):
     """判断是否非汉字，数字和英文字符"""
