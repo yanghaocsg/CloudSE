@@ -65,7 +65,7 @@ class YhTrieSeg:
                         new = list_seg[i-1]+s[:-1]
                         if new in self.dict_all:
                             set_add.add(new)
-        logger.error('presuffix %s' % '|'.join(list_seg))
+        #logger.error('presuffix %s' % '|'.join(list_seg))
         return list_seg + list(set_add)
     
     def clue(self, list_seg=[], ulist= u'第一二三四五六七八九十零1234567890年月日'):
@@ -122,7 +122,7 @@ class YhTrieSeg:
             list_res.reverse()
             list_res = self.presuffix(list_res)
             list_res = self.clue(list_res)
-            logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
+            #logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
             return list_res
         except:
             logger.error('%s' % traceback.format_exc())
@@ -188,41 +188,14 @@ class YhTrieSeg:
  
     def seg(self, query):
         try:
-            query = query.lower()
-            list_res = []
-            #first redirect
-            if query in self.dict_redirect:
-                logger.debug('redirect [%s] to [%s]'%(s, self.dict_redirect[query]))
-                return [self.dict_redirect[query]]
-            
-            #second norm split, max left match
-            pars = YhChineseNorm.string2List(query)
-            for p in pars:
-                if(YhChineseNorm.is_alphabet(p) or YhChineseNorm.is_number(p) or len(p) <= 2):
-                    list_res.append(p)
-                else:
-                    #list_left, unigram_left = self.left_match(p)
-                    list_left, unigram_left = self.right_match(p)
-                    if list_left:
-                        list_res.extend(list_left)
-            list_clue = list_res
-            #todu syn
-            list_syn = list_clue
-            
-            #stop
-            list_stop = list_clue
-            entity_find = 0
-            for tmp in list_clue:
-                if tmp in self.dict_entity: entity_find = 1
-            if entity_find:
-                list_stop = [tmp for tmp in list_clue if tmp and tmp not in self.dict_stop]
-            logger.debug('seg %s [%s]' % (query, '|'.join(list_stop)))
-            return list_stop
+            line = YhChineseNorm.stringQ2B(query)
+            list_res = self.right_match(line)
+            return list_res
         except:
             logger.error('%s[%s]' % (query, traceback.format_exc()))
             return query
 
-trie = YhTrieSeg()
+
     
 def test_match(kw=u'北京旅游'):
     list_res, num_unigram = trie.right_match(kw)
@@ -231,12 +204,12 @@ def test_match(kw=u'北京旅游'):
     logger.error('|'.join(list_res))
     
 def test_file(ifn='./txt/music_query.txt', ofn='./txt/seg_music_query.txt'):
+    trie = YhTrieSeg()
     ofh = open(ofn, 'w+')
     for line in open(ifn):
         line = unicode(line.strip(), 'utf-8', 'ignore')
         if not line: continue
-        line = YhChineseNorm.stringQ2B(line)
-        list_res = trie.right_match(line)
+        list_res = trie.seg(line)
         ofh.write('%s\n%s\n' % (line.encode('utf-8', 'ignore'), '\t'.join([t.encode('utf-8', 'ignore') for t in list_res if t])))
         raw_input()
         '''
