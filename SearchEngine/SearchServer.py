@@ -4,20 +4,14 @@ from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 import tornado.gen, tornado.web
 
-import sys
-import traceback
-import imp
-import os
-import subprocess
-import logging
-import datetime
+import sys, traceback, imp, os, subprocess, logging, datetime
 from unipath import Path
 import ConfigParser
 
 sys.path.insert(0, "../YhHadoop")
 #self module
 import YhLog
-import ShortVideoSearch_Handler
+import Searcher
 logger = logging.getLogger(__name__)
 
 logger.error('global init start [%s]\n====================='%datetime.datetime.now())
@@ -64,8 +58,8 @@ class restart_handler(tornado.web.RequestHandler):
         try:
             logger.error('restart ok')  
             self.finish()
-            str_process = 'ShortVideoSearch_Restart.py'
-            str_restart = '/data1/yanghao/software/python27/bin/python %s' % Path(Path(__file__).ancestor(1), str_process)
+            str_process = 'Search_Restart.py'
+            str_restart = 'python  %s' % Path(Path(__file__).ancestor(1), str_process)
             p = subprocess.call(str_restart, stdout= None, shell=True)
         except:
             msg_err = traceback.format_exc()
@@ -87,12 +81,12 @@ def multi_app():
         (r'/favicon.ico', root_handler),
         (r'/reload', reload_handler),
         (r'/restart', restart_handler),
-        (r'/se_sv', ShortVideoSearch_Handler.ShortVideoSearch_Handler),
+        (r'/se', Searcher.Search_Handler),
         ])
     http_server = HTTPServer(app)
-    http_server.bind(int(p))
-    http_server.start(2)
-    logger.error('listen port %s' % p)
+    http_server.bind(port)
+    http_server.start()
+    logger.error('listen port %s' % port)
     IOLoop.instance().start()
         
         

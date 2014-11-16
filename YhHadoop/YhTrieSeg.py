@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 import tornado.gen, tornado.web
 import sys, os, string
-import re, traceback
+import re, traceback, cPickle
 import simplejson
 from unipath import Path
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class YhTrieSeg:
-    def __init__(self, fn_domain=[]):
+    def __init__(self, fn_domain=[], fn_pic='../data/trieseg.pic'):
         self.dict_keyword = {}
         self.dict_all = {}
         self.dict_syn = {}
@@ -28,12 +28,20 @@ class YhTrieSeg:
         self.dict_redirect = {}
         self.dict_entity = {}
         self.fn_domain = fn_domain
-        self.max_len = 0
+        self.max_len = 6
         self.cwd = Path(__file__).absolute().ancestor(1)
-        self.load()
+        self.pickle(fn_pic)
+    
+    def pickle(self, fn_pic='../data/trieseg.pic'):
+        try:
+            self.dict_all = cPickle.load(open(fn_pic))
+        except:
+            logger.error('pickle error %s' % traceback.format_exc())
+            self.load(fn_pic=fn_pic)
+        logger.error('pickle dict_all %s' % len(self.dict_all))
         
     def load(self, fn='./txt/dict_keyword.txt', synfn='./txt/dict_synwords.txt', stopfn='./txt/dict_stoplist.txt', cluefn='./txt/dict_cluelist.txt', 
-            redirectfn='./txt/dict_redirect.txt', entityfn='./txt/dict_entity.txt'):
+            redirectfn='./txt/dict_redirect.txt', entityfn='./txt/dict_entity.txt', fn_pic='../data/trieseg.pic'):
         for f in self.fn_domain+[fn]:
             for k in open(Path(self.cwd, f)):
                 k = unicode(k.strip(), 'utf8', 'ignore')
@@ -41,9 +49,14 @@ class YhTrieSeg:
                 list_k = k.split()
                 if list_k and len(list_k[0])>1:
                     self.dict_all[list_k[0]] = 1
-                    if len(list_k[0]) >= self.max_len:
-                        self.max_len = len(list_k[0])
-        logger.error('dict_all %s' % len(self.dict_all))
+                    #if len(list_k[0]) >= self.max_len:
+                    #    self.max_len = len(list_k[0])
+        for k in open(Path(self.cwd, stopfn)):
+            k = unicode(k.strip(), 'utf8', 'ignore')
+            if not k: continue
+            del self.dict_all[k]
+        cPickle.dump(self.dict_all, open(fn_pic, 'w+'))
+        logger.error('load dict_all %s' % len(self.dict_all))
 
     def presuffix(self,  list_seg=[], ulist=u'的了地和'):
         set_add = set()
@@ -88,73 +101,49 @@ class YhTrieSeg:
                 i += 1
         return list_seg + list(set_add)
                 
-    def right_match(self, query):
+    def right_match(self, query=''):
         try:
-            query = query.lower()
+            logger.error('query %s' % query)
             #dict clue 
             list_res = []
             end = len(query)
             
             while(end >= 2):
+                start = end - 1
                 for i in range(max(0, end - self.max_len), end):
-                    #logger.error(query[:end])
+                    logger.error('subquery %s' % query[i:end])
                     if(query[i:end] in self.dict_all):
+                        start = i
                         break
-                s = query[i:end]
-                
+                s = query[start:end]
                 if s in self.dict_all: 
                     list_res.append(s)
                 elif YhChineseNorm.is_number_alphabet(s):
-                    j = i
+                    j = start
                     while j >= 0:
                         if YhChineseNorm.is_number_alphabet(query[j]):
                             j -= 1
                         else:
                             break
                     list_res.append(query[j+1:end])
-                    i = j+1
+                    start = j+1
                 elif not YhChineseNorm.is_other(s):
                     list_res.append(s)
-                end = i
-                
+                end = start
+                logger.error('|'.join(list_res))
             if end > 0 and query[:end] and not YhChineseNorm.is_other(query):
                 list_res.append(query[:end])
+            
             list_res.reverse()
             list_res = self.presuffix(list_res)
             list_res = self.clue(list_res)
-            #logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
+            logger.error('right_match %s\n %s' % (query, '|'.join(list_res)))
             return list_res
         except:
             logger.error('%s' % traceback.format_exc())
             return [query]
     
-    def merge_unigram(self, list_res, start = 0):
-        #logger.error('merge_unigram %s %s' % ('|'.join(list_res), start))
-        if(start >= len(list_res) -1): return list_res
-        if(min([len(l) for l in list_res[start:]]) >= 2): return list_res
-        
-        list_merge = []
-        for i in range(start, len(list_res)):
-            if len(list_res[i]) == 1:
-                if i > 0 and len(list_res[i-1])>2:
-                    before = list_res[i-1][:-1]
-                    now = ''.join((list_res[i-1][-1:], list_res[i]))
-                    if(before in self.dict_all and now in self.dict_all):
-                        list_merge.extend(list_res[:i-1])
-                        list_merge.append(before)
-                        list_merge.append(now)
-                        list_merge.extend(list_res[i+1:])
-                        return self.merge_unigram(list_merge, start = i+1)
-                elif i < len(list_res)-1  and len(list_res[i+1]) > 2:
-                    before = ''.join((list_res[i], list_res[i+1][0]))
-                    now = ''.join((list_res[i+1][1:]))
-                    if(before in self.dict_all and now in self.dict_all):
-                        list_merge.extend(list_res[:i])
-                        list_merge.append(before)
-                        list_merge.append(now)
-                        list_merge.extend(list_res[i+2:])
-                        return self.merge_unigram(list_merge, start = i+1)
-        return self.merge_unigram(list_res, start = i+1)
+    
 
     def left_match(self, query):
         try:

@@ -3,12 +3,12 @@
 
 import eventlet
 from eventlet.green import urllib2
-import sys, re, logging, redis,traceback, time
-import multiprocessing, os
+import sys, re, logging, redis,traceback, time, datetime, cPickle
+import multiprocessing, os, lz4
 
 #self module
 sys.path.append('/data/CloudSE/YhHadoop')
-import YhLog, YhCompress
+import YhLog
 
 
 logger = logging.getLogger(__name__)
@@ -21,8 +21,9 @@ def httpget(url=''):
         try:
             data = urllib2.urlopen(url).read()
         except:
-            logger.error(traceback.format_exc())
-    logger.error('httpget %s %s' % (url, len(data)))
+            #logger.error(traceback.format_exc())
+            pass
+    data = unicode(data, 'utf8', 'ignore')
     return url, data
     
 def craw(list_url=[]):
@@ -34,131 +35,104 @@ def craw(list_url=[]):
     return dict_res
 
 class Crawler(object):
-    def __init__(self, company='120ask'):
+    def __init__(self, prefix='urlcontent:%s', company='120ask', db='rawcontent', pattern_url_id=r'/(\d+?).htm', pattern_title=r'<title>(.*?)</title>', pattern_description='<meta name="description"\s+content="(.*?)"', pattern_keyword='<meta name="keywords"\s+content="(.*?)"'):
         self.company = company
-        self.prefix = 'urlcontent:%s' % self.company
-
-    def save(self, dict_res={}):
-        for u,v in dict_res.iteritems():
-            redis_one.hset(self.prefix, u,  YhCompress.compress(v))
+        self.prefix = prefix % self.company
+        self.pattern_url_id = pattern_url_id
+        self.pattern_title = pattern_title
+        self.pattern_keyword = pattern_keyword
+        self.pattern_description = pattern_description
+        #redis_one.delete(self.prefix)
         
-    def notsaved(self, list_url=[]):
+    def save(self, dict_res={}):
+        pipeline = redis_one.pipeline()
+        for u,v in dict_res.iteritems():
+            title, keyword, description = self.get_keyword(v)
+            content = self.get_content(v)
+            id = self.get_id(u)
+            dict_info = {'url':u, 'title':title, 'keyword':keyword, 'description':description, 'content':content, 'id':id}
+            #logger.error('|'.join([dict_info[t] for t in ['url', 'title', 'keyword', 'description']]))
+            pipeline.hset(self.prefix, u,  lz4.dumps(cPickle.dumps(dict_info)))
+        pipeline.execute()
+        #logger.error('crawler save %s' % redis_one.hlen(self.prefix))
+        
+    def notexist(self, list_url = []):
+        list_remain= []
         if list_url:
             list_res = redis_one.hmget(self.prefix, list_url)
-            list_saved, list_notsaved=[], []
             for i, r in enumerate(list_res):
                 if not r:
-                    list_notsaved.append(list_url[i])
-                    #logger.error('%s\t%s notsaved' % (list_url[i], r))
-                else:
-                    list_saved.append(list_url[i])
-                    #logger.error('%s\t%s havesaved' % (list_url[i], len(r)))
-            return list_saved, list_notsaved
-        else:
-            return [], []
-    def process(self, pattern_url='http://www.120ask.com/question/%s.htm', start=10000000, end=50000000):
+                    list_remain.append(list_url[i])
+        return list_remain
+        
+    def process(self, pattern_url='http://www.120ask.com/question/%s.htm', start=0, end=10000000):
         try:
             i = start
             while i <= end:
                 list_url = [pattern_url % j  for j in range(i, i+100)]
-                list_remain = self.notsaved(list_url)[1]
-                dict_res = craw(list_remain)
+                list_url = self.notexist(list_url)
+                dict_res = craw(list_url)
                 self.save(dict_res)
-                #time.sleep(1)
+                hour = datetime.datetime.now().hour
+                logger.error(hour)
+                if hour > 10:
+                    time.sleep(2)
                 i += 100
                 logger.error('Crawler %s %s %s' % (list_url[0], len(dict_res), redis_one.hlen(self.prefix)))
         except:
             logger.error(traceback.format_exc())
             
-    def get_content(self, list_url=[]):
-        if not list_url: return []
-        list_res = redis_one.hmget(self.prefix, list_url)
-        list_content = []
-        for r in list_res:
-            if r:
-                list_content.append(YhCompress.decompress(r))
-        return list_content
-        
-class Parser():
-    def __init__(self, company='120ask'):
-        self.company = company
-        self.sitemap_prefix= 'sitemap:%s' % self.company
-        self.sitemap_parsed_prefix= 'sitemap:parsed:%s' % self.company
-        self.content_prefix = 'content:%s' % self.company
-        
-    def process(self, start_url='http://www.120ask.com/list/all/', start=0, end=2538777):
+    def get_keyword(self, webpage=''):
+        title, keyword, description = '', '', ''
         try:
-            i = start
-            while i <= end:
-                list_url = ['%s/%s/' % (start_url, j) for j in range(i, i+100)]
-                list_remain = Crawler().notsaved(list_url)[0]
-                list_remain = self.notparsed(list_remain)[1]
-                set_contenturl = self.parse_contenturl(list_remain)
-                dict_url = {}
-                for u in set_contenturl:
-                    dict_url[u] = 1
-                self.save_contenturl(dict_url)
-                if len(dict_url) == 0:
-                    time.sleep(1)
-                i+=100
-                logger.error('Parser %s %s %s' %  (list_url[0], len(dict_url), redis_one.hlen(self.content_prefix)))
+            re_title = re.search(self.pattern_title, webpage)
+            if re_title: title = re_title.group(1)
+            re_keyword = re.search(self.pattern_keyword, webpage)
+            if re_keyword: keyword = re_keyword.group(1)
+            re_description = re.search(self.pattern_description, webpage)
+            if re_description: description = re_description.group(1)
         except:
             logger.error(traceback.format_exc())
-            
-    def notparsed(self, list_url=[]):
-        logger.error('notparsed len %s' % len(list_url))
-        if list_url:
-            list_res = redis_one.hmget(self.sitemap_parsed_prefix, list_url)
-            list_yes, list_no = [], []
-            for i, r in enumerate(list_res):
-                if not r:
-                    list_no.append(list_url[i])
-                else:
-                    list_yes.append(YhCompress.decompress(r))
-            return list_yes, list_no
-        else:
-            return [], []
-    def parse_contenturl(self, list_url=[],  url_prefix='http://www.ask.com', pattern_url = 'http://www.120ask.com/question'):
-        if not list_url: return set()
-        try:
-            list_content = Crawler().get_content(list_url)
-            set_suburl = set()
-            for page in list_content:
-                list_u = re.findall('<a.*?href=\"(.*?)\".*?>', page)
-                
-                for u in list_u:
-                    if u[:4]!='http':
-                        u = 'http://www.120ask.com' + u
-                    if re.match(pattern_url, u):
-                        set_suburl.add(u)
-            return set_suburl
-        except:
-            logger.error(traceback.format_exc())
-            return set()
+        return title, keyword, description
     
-    def save_contenturl(self, dict_url={}):
+    def get_content(self, page=''):
+        content = ''
         try:
-            if dict_url:
-                redis_one.hmset(self.content_prefix, dict_url)
+            set_res = set()
+            new_content = re.sub('\s+', ' ', page, flags=re.M|re.I)
+            new_content = re.sub('<!--.*?-->', '', new_content, flags=re.M|re.I)
+            new_content = re.sub('<style.*?>.*?</style>', '', new_content, flags=re.M|re.I)
+            new_content = re.sub('<script.*?>.*?</script>', '', new_content, flags=re.M|re.I)
+            new_content =  re.sub('<.*?>', '', new_content, flags=re.M|re.I)
+            new_content =  re.sub('&nbsp;|&gt;|&lt;', '', new_content, flags=re.M|re.I)
+            content = new_content
         except:
-            logger.error('%s' % traceback.format_exc())
-
+            logger.error(traceback.format_exc())
+        return content
+    
+    def get_id(self, url=''):
+        re_url_id = re.search(self.pattern_url_id, url)
+        id = int(re_url_id.group(1))
+        return id
 
 def test_crawler():
     c = Crawler()
     c.process()
 
-def test_parser():
-    sys.exit()
-    p = Parser()
-    p.process()
-    
 if __name__=='__main__':
-    for f in [test_crawler, test_parser]:
-        t = os.fork()
-        if t > 0:
-            continue
-        else:
-            f()
-    sys.exit(0)
-    
+    t = os.fork()
+    if t > 0:
+        sys.exit(0)
+    else:
+        '''
+        try:
+            multiprocessing.Process(target=Crawler().process, kwargs={'start':0, 'end':100}).start()
+        except:
+            logger.error(traceback.format_exc())
+        '''
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':0, 'end':1000*1000*10}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*10, 'end':1000 * 1000 * 20}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*20, 'end':1000 * 1000 * 30}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*30, 'end':1000 * 1000 * 40}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*40, 'end':1000 * 1000 * 50}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*50, 'end':1000 * 1000 * 60}).start()

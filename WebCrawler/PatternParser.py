@@ -8,7 +8,7 @@ import multiprocessing, os
 
 #self module
 sys.path.append('/data/CloudSE/YhHadoop')
-import YhLog, YhCompress
+import YhLog, lz4
 
 
 logger = logging.getLogger(__name__)

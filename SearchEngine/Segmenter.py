@@ -19,6 +19,7 @@ mongo = YhMongo.yhMongo.mongo_cli
 cwd = Path(__file__).absolute().ancestor(1)
 yhTrieSeg = YhTrieSeg.YhTrieSeg([Path(cwd, '../data/tag_120ask.txt')])
 redis_one = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=1)
+redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
 def idx(ifn= '', ofn='', columns=['keyword', 'descrption'], pattern_url_id=''): 
     try:
         list_data = cPickle.load(open(ifn))
@@ -39,6 +40,7 @@ def idx(ifn= '', ofn='', columns=['keyword', 'descrption'], pattern_url_id=''):
                     for s in list_s:
                         if s:
                             dict_idx[s].add(url_id)
+                        
             except:
                 logger.error(traceback.format_exc())
         ofh= open(ofn, 'w+')
