@@ -69,16 +69,19 @@ class Crawler(object):
         try:
             i = start
             while i <= end:
-                list_url = [pattern_url % j  for j in range(i, i+100)]
-                list_url = self.notexist(list_url)
-                dict_res = craw(list_url)
-                self.save(dict_res)
-                hour = datetime.datetime.now().hour
-                logger.error(hour)
-                if hour > 10:
-                    time.sleep(2)
-                i += 100
-                logger.error('Crawler %s %s %s' % (list_url[0], len(dict_res), redis_one.hlen(self.prefix)))
+                try:
+                    list_url = [pattern_url % j  for j in range(i, i+100)]
+                    list_url = self.notexist(list_url)
+                    dict_res = craw(list_url)
+                    self.save(dict_res)
+                    hour = datetime.datetime.now().hour
+                    #logger.error(hour)
+                    if hour > 10:
+                        time.sleep(2)
+                    i += 100
+                    logger.error('Crawler %s %s %s' % (list_url[0], len(dict_res), redis_one.hlen(self.prefix)))
+                except:
+                    logger.error(traceback.format_exc())
         except:
             logger.error(traceback.format_exc())
             
