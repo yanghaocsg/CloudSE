@@ -36,6 +36,7 @@ class Transfer(object):
             logger.error('total urls len %s' % len(urls))
             i = 0
             len_data = len(urls)
+            
             while i <= len(urls):
                 datas = redis_one.hmget(self.prefix, urls[i:i+10000])
                 for u,d in zip(urls[i:i+10000], datas):
@@ -47,10 +48,10 @@ class Transfer(object):
                     redis_one.hset(self.prefix, u, 1)
                 logger.error('Transfer %s %s' % (i, mongo.db[self.db].count()))
                 i += 10000
-                break
+                
         except:
             logger.error(traceback.format_exc())
-        return len_data
+        return i
     
     def test(self):
         logger.error('test')
@@ -58,7 +59,7 @@ class Transfer(object):
         for d in datas[:3]:
             buf = cPickle.loads(lz4.loads(d['data']))
             logger.error('|'.join([buf[k] for k in ['url','title', 'keyword', 'description']]))
-    
+        return mongo.db[self.db].count()
     
 if __name__=='__main__':
     p = os.fork()
@@ -67,6 +68,9 @@ if __name__=='__main__':
     else:
         while True:
             len_data = Transfer().process()
-            Transfer().test()
-            if not len_data:
-                time.sleep(3600*2)
+            len_test = Transfer().test()
+            if len_data:
+                logger.error('pattern_transfer %s add %s' % (len_data(), len_test))
+                
+            else:
+                time.sleep(1800)    
