@@ -9,7 +9,7 @@ import tornado.gen, tornado.web
 import eventlet, urllib
 from eventlet.green import urllib2
 import sys, re, logging, redis,traceback, time, datetime, cPickle
-import multiprocessing, os, lz4
+import multiprocessing, os, lz4, simplejson
 
 #self module
 sys.path.append('/data/CloudSE/YhHadoop')
@@ -19,6 +19,7 @@ import YhLog
 logger = logging.getLogger(__file__)
 
 def httpget(url=''):
+    logger.error('httpget %s' % url)
     data = ''
     with eventlet.timeout.Timeout(3, False):
         try:
@@ -47,6 +48,8 @@ class AgentCrawler(object):
                 logger.error(hour)
                 if hour > 10:
                     time.sleep(2)
+                else:
+                    time.sleep(1)
                 logger.error('Crawler %s %s' % (list_url[i], len(dict_res)))
                 i += 10
             #for u in dict_res:
@@ -70,13 +73,17 @@ class AgentCrawler_Handler(tornado.web.RequestHandler):
     @tornado.gen.engine
     def get(self):
         try:
-            str_list_url = self.request.get('lu', '')
+            str_list_url = self.get_argument('lu', '')
+            logger.error('str_list_url %s' % str_list_url)
             list_url = simplejson.loads(str_list_url)
+            logger.error('\n'.join(list_url))
             dict_res = AgentCrawler().process(list_url)
+            logger.error('dict_res %s' % dict_res)
             logger.error('AgentCrawler_Handler %s %s' % (len(list_url), len(dict_res)))
-            return lz4.dumps(simplejson.loads(dict_res))
-        except Exception:
-            logger.error('svs_handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
+            
+            return self.write(simplejson.dumps({'status':0, 'data':dict_res}))
+        except:
+            logger.error('AgentCrawler_Handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
             self.write(simplejson.dumps({'status':1, 'errlog':traceback.format_exc(), 'url':self.request.uri}))
         finally:
             self.finish()
@@ -85,6 +92,6 @@ if __name__=='__main__':
     logger.error('\t'.join(u'abcdef糖尿病'))
     list_url = []
     for q in u'abcdef糖尿病':
-        list_url.append('http://m.so.com/suggest/mso?%s&src=mso&callback=suggest' % urllib.urlencode({'kw':q.encode('utf8', 'ignore')}))
+        list_url.append('http://m.so.com/suggest/mso?%s&src=mso&callback=suggest' % urllib.urlencode({'kw':urllib.quote_plus(q)}))
     logger.error('\n'.join(list_url))
     AgentCrawler().process(list_url)
