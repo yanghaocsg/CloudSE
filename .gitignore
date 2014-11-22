@@ -2,12 +2,12 @@
 /**/*.txt
 /**/*.bak
 /**/*.keyword
-/**/*.log
+/**/*.log*
 /**/*.pyc
 /**/*.tar
 /**/*.tar.gz
 *.txt
 *.dict
-/**/*idx*
-/**/*db*
-
+/**/*.idx*
+/**/*.db*
+/**/*.pic*
