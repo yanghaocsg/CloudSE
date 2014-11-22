@@ -70,7 +70,7 @@ if __name__=='__main__':
             len_data = Transfer().process()
             len_test = Transfer().test()
             if len_data:
-                logger.error('pattern_transfer %s add %s' % (len_data(), len_test))
+                logger.error('pattern_transfer %s add %s' % (len_data, len_test))
                 
             else:
                 time.sleep(1800)    

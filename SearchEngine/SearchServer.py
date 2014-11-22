@@ -91,9 +91,7 @@ def multi_app():
         
         
 if __name__ == '__main__':
-    '''
     pid = os.fork()
     if(pid >0):
         os._exit(0)
-    '''
     multi_app()

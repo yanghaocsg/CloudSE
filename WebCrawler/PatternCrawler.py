@@ -69,19 +69,16 @@ class Crawler(object):
         try:
             i = start
             while i <= end:
-                try:
-                    list_url = [pattern_url % j  for j in range(i, i+100)]
-                    list_url = self.notexist(list_url)
-                    dict_res = craw(list_url)
-                    self.save(dict_res)
-                    hour = datetime.datetime.now().hour
-                    #logger.error(hour)
-                    if hour > 10:
-                        time.sleep(2)
-                    i += 100
-                    logger.error('Crawler %s %s %s' % (list_url[0], len(dict_res), redis_one.hlen(self.prefix)))
-                except:
-                    logger.error(traceback.format_exc())
+                list_url = [pattern_url % j  for j in range(i, i+100)]
+                list_url = self.notexist(list_url)
+                dict_res = craw(list_url)
+                self.save(dict_res)
+                hour = datetime.datetime.now().hour
+                logger.error(hour)
+                if hour > 10:
+                    time.sleep(1)
+                i += 100
+                logger.error('Crawler %s %s %s' % (list_url[0], len(dict_res), redis_one.hlen(self.prefix)))
         except:
             logger.error(traceback.format_exc())
             
@@ -117,7 +114,7 @@ class Crawler(object):
         re_url_id = re.search(self.pattern_url_id, url)
         id = int(re_url_id.group(1))
         return id
-
+    
 def test_crawler():
     c = Crawler()
     c.process()
@@ -133,9 +130,9 @@ if __name__=='__main__':
         except:
             logger.error(traceback.format_exc())
         '''
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':0, 'end':1000*1000*10}).start()
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*10, 'end':1000 * 1000 * 20}).start()
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*20, 'end':1000 * 1000 * 30}).start()
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*30, 'end':1000 * 1000 * 40}).start()
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*40, 'end':1000 * 1000 * 50}).start()
-        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*50, 'end':1000 * 1000 * 60}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':0, 'end':1000*1000*5}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*15, 'end':1000 * 1000 * 20}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*25, 'end':1000 * 1000 * 30}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*35, 'end':1000 * 1000 * 40}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*45, 'end':1000 * 1000 * 50}).start()
+        multiprocessing.Process(target=Crawler().process, kwargs={'start':1000*1000*55, 'end':1000 * 1000 * 60}).start()
