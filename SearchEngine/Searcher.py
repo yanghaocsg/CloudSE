@@ -16,35 +16,38 @@ import tornado.gen, tornado.web
 
 #self module
 sys.path.append('../YhHadoop')
-import YhLog, YhMongo, YhTool
-import YhTrieSeg, Info
+import YhLog, YhMongo, YhTool, YhChineseNorm
+import YhTrieSeg, Info, Indexer
 
 logger = logging.getLogger(__name__)
 cwd = Path(__file__).absolute().ancestor(1)
 mongo = YhMongo.yhMongo.mongo_cli
 yhTrieSeg = YhTrieSeg.YhTrieSeg(fn_domain=[Path(cwd, '../data/tag_120ask.txt')], fn_pic=Path(cwd, '../data/trieseg_120ask.pic'))
 redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
-redis_187 = redis.Redis(host='219.239.89.187', port=7777)
+
 
 class Searcher(object):
-    def __init__(self, company='120ask', db='tag', cache_prefix='cache:%s:%s'):
+    def __init__(self, company='120ask', db='tag', cache_prefix='cache'):
         self.cwd = Path(__file__).absolute().ancestor(1)
         self.company = company
+        '''
         self.db = mongo[db]
         self.collection = self.db[company]
         self.collection.ensure_index([('tag', 1)], unique=True,  background=True, dropDups =True)
         self.ofh_tag = open(Path(self.cwd, 'tag_%s.txt' % company), 'w+')
-        self.cache_prefix = cache_prefix
-        
-    def process(self, query='', start=0, num=10):
+        '''
+        self.cache_prefix = '%s:%s' % (cache_prefix, self.company)
+    
+    def process(self, query='', start=0, num=10, cache=1):
         try:
             if isinstance(query, str):
                 query = unicode(query, 'utf8', 'ignore')
+            query = YhChineseNorm.uniform(query)
             list_s = yhTrieSeg.seg(query)
             logger.error('query %s %s' % (query, '|'.join(list_s)))
             list_url, num_url = [], 0
             if list_s:
-                list_url, num_url = self.get_cache(list_s, start, num)
+                list_url, num_url = self.get_cache(query, list_s, start, num, cache)
             else:
                 raise
             logger.error('list_url %s num_url %s' % (len(list_url), num_url))
@@ -55,47 +58,36 @@ class Searcher(object):
             logger.error(traceback.format_exc())
             return simplejson.dumps(dict_res)
             
-    def get_cache(self, list_s=[], start=0, num=10):
-        res = redis_187.get(self.cache_prefix  % (self.company, '|'.join(list_s)))
-        if res:
+    def get_cache(self, query='',  list_s=[], start=0, num=10, cache=1):
+        res = redis_zero.get('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
+        if res and cache:
             try:
                 logger.error('get_cache cached [%s]' % '|'.join(list_s))
                 dict_res = simplejson.loads(lz4.loads(res))
-                return dict_res['list_url'][start:start+num], dict_res['num_url']
+                return dict_res['list_url'][start:start+num], len(dict_res['list_url'])
             except:
-                redis_187.delete(self.cache_prefix % (self.company, '|'.join(list_s)))
+                redis_zero.delete('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
                 raise
         else:
             logger.error('get_cache dached [%s]' % '|'.join(list_s))
-            list_res, num_res = self.parse_query(list_s)
+            list_kv, num_kv = Indexer.Indexer().get_kv(query)
+            list_idx, num_idx = Indexer.Indexer().parse_query(list_s)
+            list_res = []
+            set_res = set()
+            list_url = []
+            for item in list_kv + list_idx:
+                if item not in set_res:
+                    set_res.add(item)
+                    list_res.append(item)
             if list_res:
                 list_url = Info.Info().getInfoById(list_res)
-            buf = simplejson.dumps({'list_url':list_url, 'num_url':num_res})
+            buf = simplejson.dumps({'list_url':list_url, 'num_url':len(list_url)})
             logger.error('lz4 test len[%s] lz4len[%s]' % (len(buf), len(lz4.dumps(buf))))
-            redis_187.set(self.cache_prefix % (self.company, '|'.join(list_s)), lz4.dumps(buf))
-            redis_187.expire(self.cache_prefix % (self.company, '|'.join(list_s)), 3600)
-            return list_url[start:start+num], num_res
+            redis_zero.set('%s:%s' % (self.cache_prefix, '|'.join(list_s)), lz4.dumps(buf))
+            redis_zero.expire('%s:%s' % (self.cache_prefix, '|'.join(list_s)), 3600)
+            return list_url[start:start+num], len(list_url)
             
-    def parse_query(self, list_s=[]):
-        set_docid = set()
-        if list_s:
-            for i, s in enumerate(list_s):
-                try:
-                    if i == 0:
-                        set_docid |= cPickle.loads(lz4.loads(redis_zero.get('idx:%s:%s' % (self.company, s))))
-                    else:
-                        set_docid &= cPickle.loads(lz4.loads(redis_zero.get('idx:%s:%s' % (self.company, s))))
-                except:
-                    logger.error('parse_query %s %s' % (s, traceback.format_exc()))
-                    return [], 0
-        list_docid = list(set_docid)
-        list_docid.reverse()
-        if len(list_docid)<20:
-            set_docid = cPickle.loads(lz4.loads(redis_zero.get('idx:%s:%s' % (self.company, s))))
-            if set_docid:
-                list_docid.extend([s for s in list(set_docid)[:20] and s not in list_docid])
-        logger.error('parse_query seg %s  len %s' % ('|'.join(list_s), len(list_docid)))
-        return list_docid[:200], len(list_docid)
+    
         
 searcher = Searcher()
 class Search_Handler(tornado.web.RequestHandler):
@@ -103,9 +95,10 @@ class Search_Handler(tornado.web.RequestHandler):
     @tornado.gen.engine
     def get(self):
         try:
-            dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n'], ['', '0', '20'])
-            query, start, num = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n'])
-            self.write(searcher.process(query, start, num))
+            dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n', 'cache'], ['', '0', '20', '1'] )
+            query, start, num,cache = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n']), int(dict_qs['cache'])
+            logger.error('%s\t%s\t%s\t%s' % (query, start, num, cache))
+            self.write(searcher.process(query, start, num, cache))
         except Exception:
             logger.error('svs_handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
             self.write(simplejson.dumps({'status':1, 'errlog':traceback.format_exc(), 'url':self.request.uri}))
