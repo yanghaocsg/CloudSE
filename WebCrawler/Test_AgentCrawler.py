@@ -21,9 +21,9 @@ class Test_AgentCrawler:
         self.config.read(Path(self.cwd, conf_file))
         self.list_agent = self.config.get('agent', 'url').split(',')
         self.len_agent = len(self.list_agent)
-        self.url_se_360 = 'http://www.so.com/s?src=srp&fr=360sou_newhome&q=site%3Awww.120ask.com+'
-        self.url_sug_360 = 'http://m.so.com/suggest/mso?kw=%s&src=mso&callback=suggest'
-        self.url_se_sogou = 'http://www.sogou.com/web?query=%s+site%3Awww.120ask.com&_asf=www.sogou.com&_ast=&w=01019900&p=40040100&ie=utf8&sut=1171&sst0=1416744428350&lkt=0%2C0%2C0'
+        self.url_se_360 = 'http://www.so.com/s?src=srp&fr=360sou_newhome&q='
+        self.url_sug_360 = 'http://m.so.com/suggest/mso?src=mso&callback=suggest&kw='
+        self.url_se_sogou = 'http://www.sogou.com/web?&_asf=www.sogou.com&_ast=&w=01019900&p=40040100&ie=utf8&sut=1171&sst0=1416744428350&lkt=0%2C0%2C0&query=%s+site%3Awww.120ask.com'
         self.url_sug_sogou = 'http://w.sugg.sogou.com/sugg/ajaj_json.jsp?key=%s&type=web&ori=yes&pr=web&abtestid=1&ipn=false'
         
     def httpget(self, list_url=[]):
@@ -54,12 +54,15 @@ class Test_AgentCrawler:
         logger.error('httpget %s\t%s' % (len(list_url), len(dict_res)))
         return dict_res
     
-    def parse_sug(self,ifn='tag_120ask.txt.craw'):
-        dict_tag_sug = defaultdict(list)
-        for l in open(ifn):
-            l = unicode(l.strip(), 'utf8', 'ignore')
-            if not l: continue
-            k, v = re.split('\t', l, 2)
+    def craw_sug(self, ifn='tag_120ask.txt', url_sug=''):
+        list_q = [unicode(l.strip(), 'utf8', 'ignore') for l in open(ifn) if l.strip()]
+        logger.error('test_fn len %s' % len(list_q))
+        if not url_sug:
+            url_sug = self.url_sug_360
+        list_url = [url_sug + urllib.quote_plus(q.encode('utf8', 'ignore')) for q in list_q]
+        dict_res = Test_AgentCrawler().httpget(list_url[:20])
+        dict_sug = defaultdict(list)
+        for k, v in dict_res.iteritems():
             re_sub = re.search('suggest\((.*?)\)$', v)
             if not re_sub: continue
             v = re_sub.group(1)
@@ -67,25 +70,26 @@ class Test_AgentCrawler:
             dict_v = simplejson.loads(v)
             if 'query' in dict_v['data']:
                 query = dict_v['data']['query']
-                dict_tag_sug[query] = []
+                dict_sug[query] = []
                 if 'sug' in dict_v['data']:
                     for word in dict_v['data']['sug']:
-                        dict_tag_sug[query].append(word['word'])
-                #logger.error('%s\t%s' % (query, '|'.join(dict_tag_sug[query])))
+                        dict_sug[query].append(word['word'])
+                logger.error('%s\t%s' % (query, '|'.join(dict_sug[query])))
         ofh = open('%s.sug.pic' % ifn, 'w+')
-        cPickle.dump(dict_tag_sug, ofh)
-        logger.error('parse_sug %s' % len(dict_tag_sug))
+        cPickle.dump(dict_sug, ofh)
+        logger.error('parse_sug %s' % len(dict_sug))
         
-    def craw_se(self, pic_sug='tag_120ask.txt.craw.sug.pic', pic_se='tag_120ask.se.pic'):
+    def craw_se(self, pic_sug='tag_120ask.txt.sug.pic', pic_se='tag_120ask.se.pic', site_phrase='site:www.120ask.com '):
         dict_sug = cPickle.load(open(pic_sug))
         dict_url = {}
         for k, v in dict_sug.iteritems():
-            quote_k = urllib.quote_plus(k.encode('utf8', 'ignore'))
+            
+            quote_k = urllib.quote_plus((site_phrase+ k).encode('utf8', 'ignore'))
             dict_url[k] = self.url_se_360 + quote_k
             for w in v:
-                quote_w = urllib.quote_plus(k.encode('utf8', 'ignore'))
+                quote_w = urllib.quote_plus((site_phrase+ k).encode('utf8', 'ignore'))
                 dict_url[w] = self.url_se_360 + quote_w
-        logger.error('len %s\n%s' % (len(dict_url), '\n'.join(dict_url.values()[:10])))
+        logger.error('craw_se len %s\n%s' % (len(dict_url), '\n'.join(dict_url.values()[:10])))
         dict_se = self.httpget(dict_url.values())
         dict_res = defaultdict(list)
         for k in dict_url:
@@ -102,8 +106,8 @@ class Test_AgentCrawler:
         for k in dict_test:
             for i, v in enumerate(dict_test[k]):
                 logger.error('%s\t%s\t%s' % (k, i, v))
+
         '''
-        
         
 def test():
     list_url=[]
@@ -112,22 +116,17 @@ def test():
     logger.error('\n'.join(list_url))
     dict_res = Test_AgentCrawler().httpget(list_url)
     logger.error('\n'.join(['%s\t%s' % (k,v) for (k, v) in dict_res.iteritems()]))
-    
-def test_fn(ifn=''):
-    logger.error('ifn %s' % ifn)
-    list_q = [unicode(l.strip(), 'utf8', 'ignore') for l in open(ifn) if l.strip()]
-    logger.error('test_fn len %s' % len(list_q))
-    list_url = ['http://m.so.com/suggest/mso?kw=%s&src=mso&callback=suggest' % urllib.quote_plus(q.encode('utf8', 'ignore')) for q in list_q]
-    dict_res = Test_AgentCrawler().httpget(list_url)
-    ofh = open('%s.craw' % ifn, 'w+')
-    ofh.write('\n'.join(['%s\t%s' % (k,v) for (k,v) in dict_res.iteritems()]).encode('utf8', 'ignore'))
+
     
 if __name__=='__main__':
     #test()
+    #Test_AgentCrawler().craw_sug()
+    Test_AgentCrawler().craw_se()
+    sys.exit(0)
     t = os.fork()
     if t:
         sys.exit(0)
     else:
         #test_fn(sys.argv[1])
-        #Test_AgentCrawler().parse_sug()
+        Test_AgentCrawler().craw_sug()
         Test_AgentCrawler().craw_se()
