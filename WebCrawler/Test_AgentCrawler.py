@@ -60,7 +60,7 @@ class Test_AgentCrawler:
         if not url_sug:
             url_sug = self.url_sug_360
         list_url = [url_sug + urllib.quote_plus(q.encode('utf8', 'ignore')) for q in list_q]
-        dict_res = Test_AgentCrawler().httpget(list_url[:20])
+        dict_res = Test_AgentCrawler().httpget(list_url)
         dict_sug = defaultdict(list)
         for k, v in dict_res.iteritems():
             re_sub = re.search('suggest\((.*?)\)$', v)
@@ -121,8 +121,7 @@ def test():
 if __name__=='__main__':
     #test()
     #Test_AgentCrawler().craw_sug()
-    Test_AgentCrawler().craw_se()
-    sys.exit(0)
+    #Test_AgentCrawler().craw_se()
     t = os.fork()
     if t:
         sys.exit(0)

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
@@ -9,9 +10,10 @@ from unipath import Path
 import ConfigParser
 
 sys.path.insert(0, "../YhHadoop")
+sys.path.append('../Suggest')
 #self module
 import YhLog
-import Searcher
+import Searcher, SugIndexer
 logger = logging.getLogger(__name__)
 
 logger.error('global init start [%s]\n====================='%datetime.datetime.now())
@@ -58,7 +60,9 @@ class restart_handler(tornado.web.RequestHandler):
         try:
             logger.error('restart ok')  
             self.finish()
-            str_process = 'Search_Restart.py'
+            p = subprocess.Popen('ps -ef | grep %s' __file__)
+            logge.error(p.stdout)
+            pid = p.stdout.split(' ')[1]
             str_restart = 'python  %s' % Path(Path(__file__).ancestor(1), str_process)
             p = subprocess.call(str_restart, stdout= None, shell=True)
         except:
@@ -82,6 +86,7 @@ def multi_app():
         (r'/reload', reload_handler),
         (r'/restart', restart_handler),
         (r'/se', Searcher.Search_Handler),
+        (r'/sug', SugIndexer.Sug_Handler),
         ])
     http_server = HTTPServer(app)
     http_server.bind(port)
