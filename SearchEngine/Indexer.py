@@ -11,8 +11,10 @@ import cPickle
 from bitstring import BitArray
 import lz4
 #self module
-sys.path.append('/data/CloudSE/YhHadoop')
-import YhLog, YhCompress, YhMongo, YhCrawler
+sys.path.append('../YhHadoop')
+sys.path.append('../WebCrawler')
+import YhLog, YhMongo
+import AgentCrawler_360
 
 
 logger = logging.getLogger(__file__)
@@ -27,25 +29,13 @@ class Indexer(object):
         self.company =company
         self.kv_prefix = '%s:%s' % (kv_prefix, self.company)
         self.idx_prefix = '%s:%s' % (idx_prefix, self.company)
-    
-    def load_kv(self, ifn='../WebCrawler/tag_120ask.se.pic', pattern='/(\d+?).htm'):
-        pipeline = redis_zero.pipeline()
-        dict_res = cPickle.load(open(ifn))
-        dict_kv = defaultdict(list)
-        for k in dict_res:
-            for v in dict_res[k]:
-                re_v = re.search(pattern, v)
-                if re_v:
-                    id_kv = re_v.group(1)
-                    dict_kv[k].append(id_kv)
-            if dict_kv[k]:
-                logger.error('%s\t%s' % (k, '|'.join(dict_kv[k])))
+        
+    def save_kv(self, dict_kv={}):
         for k in dict_kv:
-            if dict_kv[k]:
-                redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
-        pipeline.execute()
-        logger.error('load_kv %s ' % len([k for k in dict_kv if dict_kv[k]]))
-    
+            redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
+            redis_zero.expire('%s:%s' % (self.kv_prefix, k), 3600 * 24)
+        logger.error('save_kv %s' % len(dict_kv))
+        
     def get_kv(self, query=u'品他病'):
         list_id = []
         try:
@@ -53,6 +43,8 @@ class Indexer(object):
             list_id = cPickle.loads(buf_q)
         except:
             logger.error('get_kv %s %s' % (query, traceback.format_exc()))
+            len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
+            logger.error('add_query %s %s' % (query,len_add))
         logger.error('get_kv %s %s' % (query, ','.join(list_id)))
         return list_id, len(list_id)
         
@@ -145,6 +137,6 @@ indexer = Indexer()
 
 if __name__=='__main__':
     #Indexer().process() 
-    #Indexer().load_kv()
-    Indexer().get_kv()
-    indexer.parse_query()
+    indexer.load_kv()
+    #Indexer().get_kv()
+    #indexer.parse_query()
