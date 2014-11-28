@@ -52,11 +52,11 @@ class Searcher(object):
                 raise
             logger.error('list_url %s num_url %s' % (len(list_url), num_url))
             dict_res = {'seg':list_s, 'res':list_url, 'status':0, 'totalnum':num_url}
-            return simplejson.dumps(dict_res)
+            return dict_res
         except:
             dict_res={'status':2, 'errlog':traceback.format_exc()}
             logger.error(traceback.format_exc())
-            return simplejson.dumps(dict_res)
+            return dict_res
             
     def get_cache(self, query='',  list_s=[], start=0, num=10, cache=1):
         res = redis_zero.get('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
@@ -98,12 +98,36 @@ class Search_Handler(tornado.web.RequestHandler):
             dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n', 'cache'], ['', '0', '20', '1'] )
             query, start, num,cache = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n']), int(dict_qs['cache'])
             logger.error('%s\t%s\t%s\t%s' % (query, start, num, cache))
-            self.write(searcher.process(query, start, num, cache))
+            self.write(simplejson.dumps(searcher.process(query, start, num, cache)))
         except Exception:
             logger.error('svs_handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
             self.write(simplejson.dumps({'status':1, 'errlog':traceback.format_exc(), 'url':self.request.uri}))
         finally:
             self.finish()
             
+class SearchHtml_Handler(tornado.web.RequestHandler):
+    @tornado.web.asynchronous
+    @tornado.gen.engine
+    def get(self):
+        try:
+            dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n', 'cache'], ['', '0', '20', '1'] )
+            query, start, num,cache = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n']), int(dict_qs['cache'])
+            logger.error('%s\t%s\t%s\t%s' % (query, start, num, cache))
+            dict_res = searcher.process(query, start, num, cache)
+            logger.error(dict_res.keys())
+            buf_html = '<html><body><p> 搜索词： %s' % query.encode('utf8')
+            
+            for r in dict_res['res']:
+                buf_html += '<p/><span>'
+                buf_html += '<h4><a href=%s>%s</a></h4>' % (r['url'].encode('utf8'), r['title'].encode('utf8'))
+                buf_html += '<p/><h5>%s</h5>' % r['content'].encode('utf8')
+                buf_html += '</span>'
+            buf_html += '</body></html>'
+            self.write(buf_html)
+        except Exception:
+            logger.error('svs_handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
+            self.write(simplejson.dumps({'status':1, 'errlog':traceback.format_exc(), 'url':self.request.uri}))
+        finally:
+            self.finish()            
 if __name__=='__main__':
     Searcher().process(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))

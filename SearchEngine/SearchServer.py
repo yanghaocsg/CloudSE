@@ -94,6 +94,7 @@ def multi_app():
         (r'/reload', reload_handler),
         (r'/restart', restart_handler),
         (r'/se', Searcher.Search_Handler),
+        (r'/sehtml', Searcher.SearchHtml_Handler),
         (r'/sug', SugIndexer.Sug_Handler),
         ], **settings)
     http_server = HTTPServer(app)
