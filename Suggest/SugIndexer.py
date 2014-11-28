@@ -58,13 +58,11 @@ class SugIndexer(object):
         for k in dict_se:
             if dict_se[k]:
                 dict_kw[k] = 2
-            else:
+            elif not dict_kw[k]:
                 dict_kw[k] = 0
             
-        '''
-        for k in [u'皮笔画顺序', u'偏执狂小说']:
+        for k in [u'皮笔画顺序', u'偏执狂小说', u'高血压',u'糖尿病']:
             logger.error('%s\t%s\t%s\t%s' % (k, dict_kw[k], dict_sug[k], dict_se[k]))
-        '''    
         
         cPickle.dump(dict_kw, open(Path(self.cwd, self.query_pic), 'w+'))
         self.build_sug(dict_kw)
@@ -128,7 +126,7 @@ class SugIndexer(object):
             if dict_kw[k] > 0:
                 list_pinyin = YhPinyin.yhpinyin.line2py_list(k)
                 for i in range(1, len_k+1):
-                    k_pinyin = ''.join(list_pinyin[j][0] for j in range(i))
+                    k_pinyin = ''.join([list_pinyin[j][0] for j in range(i)])
                     dict_part[k_pinyin].add(k)
                 str_pinyin = ''.join(list_pinyin)
                 for i in range(1,11):
