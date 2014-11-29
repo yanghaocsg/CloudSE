@@ -27,7 +27,16 @@ class YhPinyin:
             self.dict_pinyin[pars[0]] = pars[1:]
         logger.error('dict_pinyin len [%s]' % len(self.dict_pinyin))
     
-    
+    def line2py_list(self, line=u'一石二鸟'):
+        list_py = []
+        for k in line:
+            if k in self.dict_pinyin:
+                list_py.append(self.dict_pinyin[k][0])
+            else:
+                list_py.append(k)
+        #logger.error('%s\t%s' % (line, ','.join(list_py)))
+        return list_py
+            
     def line2py(self, line=u'一石二鸟'):
         set_py = set()
         #more than 10, not translate
@@ -71,9 +80,11 @@ class YhPinyin:
 yhpinyin = YhPinyin()
         
 def test_Chinese2Pingying():
+    '''
     yhpinyin.line2py('abc')
     yhpinyin.file2py('./txt/dict_keyword.txt', './txt/dict_keyword_py.txt')
-    
+    '''
+    yhpinyin.line2py_list()
     
 if __name__=='__main__':
     test_Chinese2Pingying()

@@ -11,17 +11,49 @@ import cPickle
 from bitstring import BitArray
 import lz4
 #self module
-sys.path.append('/data/CloudSE/YhHadoop')
-import YhLog, YhCompress, YhMongo, YhCrawler
+sys.path.append('../YhHadoop')
+sys.path.append('../WebCrawler')
+import YhLog, YhMongo
+import AgentCrawler_360
+import YhBitset
 
-
-logger = logging.getLogger(__name__)
-mongo = YhMongo.yhMongo.mongo_cli
+logger = logging.getLogger(__file__)
+#mongo = YhMongo.yhMongo.mongo_cli
 redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
+redis_187 = redis.Redis(host='219.239.89.187', port=7777)
+#redis_zero = redis.Redis(host='219.239.89.186', port=7777)
+
 class Indexer(object):
-    def __init__(self, company='120ask', db='tag'):
+    def __init__(self, company='120ask', db='tag', kv_prefix='se:kv', idx_prefix='idx'):
         self.cwd = Path(__file__).absolute().ancestor(1)
         self.company =company
+        self.kv_prefix = '%s:%s' % (kv_prefix, self.company)
+        self.idx_prefix = '%s:%s' % (idx_prefix, self.company)
+        
+    def save_kv(self, dict_kv={}):
+        for k in dict_kv:
+            #redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
+            yhBitset = YhBitset.YhBitset()
+            yhBitset.set_list(dict_kv[k])
+            redis_zero.set('%s:%s' % (self.kv_prefix, k), yhBitset.to_bytes())
+            redis_zero.expire('%s:%s' % (self.kv_prefix, k), 3600 * 24)
+        logger.error('save_kv %s' % len(dict_kv))
+        
+    def get_kv(self, query=u'品他病'):
+        list_id = []
+        try:
+            buf_q = redis_zero.get('%s:%s' % (self.kv_prefix, query))
+            if buf_q:
+                bitset_q = YhBitSet.YhBitSet()
+                bitset_q.from_bytes(buf_q)
+                list_id = bitset_q.search()
+        except:
+            logger.error('get_kv %s %s' % (query, traceback.format_exc()))
+            len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
+            logger.error('add_query %s %s' % (query,len_add))
+        logger.error('get_kv %s %s' % (query, ','.join(list_id)))
+        return list_id, len(list_id)
+        
     def process(self):
         logger.error('begin process ' )
         dict_company = {'name':'120ask', 'db_urlcontent':'urlcontent', 'prefix_db': 'tmp:db:%s', 'ofn_db':'../data/%s.db.%s','ofn_key_idx':'../data/%s.key.idx', 'ofn_content_idx':'../data/%s.content.idx', 'pattern_url_id':r'/(\d+?).htm', 'step':10000}
@@ -29,6 +61,7 @@ class Indexer(object):
         #self.merge()
         #self.idx_to_bitmap()
         self.bitmap_to_redis()
+        
     def merge(self):
         pattern_url_id = r'/(\d+?).htm'
         dict_bitset = defaultdict(set)
@@ -53,33 +86,43 @@ class Indexer(object):
                 logger.error('%s\t%s' % (i, len(dict_bitset)))
             except:
                 logger.error('%s\t%s' % (i, traceback.format_exc()))
-                
-        cPickle.dump(dict_bitset, open('./test.idx', 'w+'))
+         self.idx_to_bitset(self)       
+        #cPickle.dump(dict_bitset, open('./test.idx', 'w+'))
     
-    def idx_to_bitmap(self, start=0):
-        dict_bitset= cPickle.load(open('./test.idx'))
-        logger.error('dict_bitset %s' % len(dict_bitset))
-        dict_bitarray = {}
-        dict_bitarraybytes = {}
-        for k, set_v in dict_bitset.iteritems():
-            dict_bitarray[k] = lz4.dumps(cPickle.dumps(set_v))
-            logger.error('dict_bitarray %s' % len(dict_bitarray))
-            #dict_bitarraybytes[k] = bitarray_tmp.tobytes()
-        cPickle.dump(dict_bitarray, open('./test.bitarray', 'w+'))
-        #cPickle.dump(dict_bitarraybyte, open('./test.bitarraybyte', 'w+'))
-        logger.error('dict_bitarray %s ' % len(dict_bitarray))
-    
-    def bitmap_to_redis(self):
-        dict_bitmap = cPickle.load(open('./test.bitarray'))
+    def idx_to_bitset(dict_bitset):
         i = 0
         pipeline = redis_zero.pipeline()
-        for k in dict_bitmap:
-            pipeline.set('idx:%s:%s' % (self.company, k), dict_bitmap[k])
+        for k, set_v in dict_bitset.iteritems():
+            yhBitset = YhBitset.YhBitset()
+            yhBitset.set_list(set_v)
+            pipeline.set('%s:%s' % (self.idx_prefix, k), yhBitset.to_bytes())
             i+=1
             if i % 10000 == 1:
                 pipeline.execute()
                 logger.error('saved %s' % i)
         pipeline.execute()
         logger.error('saved all %s' % i)
+    
+    def parse_query(self, list_s=[u'品他病']):
+        list_bitset, list_docid = [], []
+        for s in list_s:
+            str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
+            if str_s:
+                yhBitset = YhBitset.YhBitset()
+                yhBitset.from_bytes(str_s)
+        if list_bitset:
+            bitset = list_bitset[0]
+            for bs in list_bitset[1:]:
+                bitset.anditem(bs)
+            list_docid = bitset.search()
+            list_docid.sort(reverse=True)
+        logger.error('parse_query seg %s  len %s' % ('|'.join(list_s), len(list_docid)))
+        return list_docid[:200], len(list_docid)
+        
+indexer = Indexer()
+
 if __name__=='__main__':
-    Indexer().process() 
+    #Indexer().process() 
+    indexer.load_kv()
+    #Indexer().get_kv()
+    #indexer.parse_query()
