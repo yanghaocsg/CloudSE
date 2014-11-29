@@ -15,6 +15,7 @@ sys.path.append('../YhHadoop')
 sys.path.append('../WebCrawler')
 import YhLog, YhMongo
 import AgentCrawler_360
+<<<<<<< HEAD
 import YhBitset
 
 logger = logging.getLogger(__file__)
@@ -22,6 +23,15 @@ logger = logging.getLogger(__file__)
 redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
 redis_187 = redis.Redis(host='219.239.89.187', port=7777)
 #redis_zero = redis.Redis(host='219.239.89.186', port=7777)
+=======
+
+
+logger = logging.getLogger(__file__)
+#mongo = YhMongo.yhMongo.mongo_cli
+#redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
+#redis_187 = redis.Redis(host='219.239.89.187', port=7777)
+redis_zero = redis.Redis(host='219.239.89.186', port=7777)
+>>>>>>> 2218cc7b3a2292960c949d0c4d61ba96f6a44464
 
 class Indexer(object):
     def __init__(self, company='120ask', db='tag', kv_prefix='se:kv', idx_prefix='idx'):
@@ -32,10 +42,14 @@ class Indexer(object):
         
     def save_kv(self, dict_kv={}):
         for k in dict_kv:
+<<<<<<< HEAD
             #redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
             yhBitset = YhBitset.YhBitset()
             yhBitset.set_list(dict_kv[k])
             redis_zero.set('%s:%s' % (self.kv_prefix, k), yhBitset.to_bytes())
+=======
+            redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
+>>>>>>> 2218cc7b3a2292960c949d0c4d61ba96f6a44464
             redis_zero.expire('%s:%s' % (self.kv_prefix, k), 3600 * 24)
         logger.error('save_kv %s' % len(dict_kv))
         
@@ -43,10 +57,14 @@ class Indexer(object):
         list_id = []
         try:
             buf_q = redis_zero.get('%s:%s' % (self.kv_prefix, query))
+<<<<<<< HEAD
             if buf_q:
                 bitset_q = YhBitSet.YhBitSet()
                 bitset_q.from_bytes(buf_q)
                 list_id = bitset_q.search()
+=======
+            list_id = cPickle.loads(buf_q)
+>>>>>>> 2218cc7b3a2292960c949d0c4d61ba96f6a44464
         except:
             logger.error('get_kv %s %s' % (query, traceback.format_exc()))
             len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
@@ -92,10 +110,15 @@ class Indexer(object):
     def idx_to_bitset(dict_bitset):
         i = 0
         pipeline = redis_zero.pipeline()
+<<<<<<< HEAD
         for k, set_v in dict_bitset.iteritems():
             yhBitset = YhBitset.YhBitset()
             yhBitset.set_list(set_v)
             pipeline.set('%s:%s' % (self.idx_prefix, k), yhBitset.to_bytes())
+=======
+        for k in dict_bitmap:
+            pipeline.set('%s:%s' % (self.idx_prefix, k), dict_bitmap[k])
+>>>>>>> 2218cc7b3a2292960c949d0c4d61ba96f6a44464
             i+=1
             if i % 10000 == 1:
                 pipeline.execute()
@@ -104,6 +127,7 @@ class Indexer(object):
         logger.error('saved all %s' % i)
     
     def parse_query(self, list_s=[u'品他病']):
+<<<<<<< HEAD
         list_bitset, list_docid = [], []
         for s in list_s:
             str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
@@ -116,6 +140,28 @@ class Indexer(object):
                 bitset.anditem(bs)
             list_docid = bitset.search()
             list_docid.sort(reverse=True)
+=======
+        set_docid = set()
+        if list_s:
+            for i, s in enumerate(list_s):
+                logger.error('%s:%s' % (self.idx_prefix, s))
+                try:
+                    if i == 0:
+                        str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
+                        if str_s: set_docid |= cPickle.loads(lz4.loads(str_s))
+                    else:
+                        str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
+                        if str_s: set_docid &= cPickle.loads(lz4.loads(str_s))
+                except:
+                    logger.error('parse_query %s %s' % (s, traceback.format_exc()))
+                    return [], 0
+        list_docid = list(set_docid)
+        list_docid.reverse()
+        if len(list_s)>=2 and len(list_docid)<20:
+            set_new = cPickle.loads(lz4.loads(redis_zero.get('%s:%s' % (self.idx_prefix, list_s[0]))))
+            if set_new:
+                list_docid.extend([s for s in set_new if s not in set_docid])
+>>>>>>> 2218cc7b3a2292960c949d0c4d61ba96f6a44464
         logger.error('parse_query seg %s  len %s' % ('|'.join(list_s), len(list_docid)))
         return list_docid[:200], len(list_docid)
         
