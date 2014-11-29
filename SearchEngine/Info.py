@@ -17,7 +17,9 @@ import tornado.gen, tornado.web
 #self module
 sys.path.append('../YhHadoop')
 import YhLog, YhMongo, YhTool, YhCompress
-redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock')
+#redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock')
+redis_zero = redis.Redis(host='219.239.89.187', port=7777)
+#redis_187 = redis.Redis(host='219.239.89.187', port=7777)
 pipeline_zero = redis_zero.pipeline()
 
 
@@ -30,23 +32,6 @@ class Info:
         self.prefix = prefix % self.company
         self.db = db
         
-    def getInfoByUrl(self, list_url=[]):
-        datas = mongo.db[self.db].find({'url':{'$in':list_url}})
-        list_res = []
-        for d in datas:
-            logger.error('raw data len %s' % len(d['data']))
-            dict_d = cPickle.loads(lz4.loads(d['data']))
-            
-            logger.error('dict len %s' % len(dict_d))
-            #logger.error('%s|%s|%s|%s' % ([dict_d[t] for t in ['id', 'title', 'description', 'content']]))
-            title, content, url = dict_d.get('title', ''), dict_d.get('content', ''), dict_d.get('url', '')
-            buf = '%s\t%s\t%s' % (url, title, content[:200])
-            buf_lz4 = lz4.dumps(buf.encode('utf8', 'ignore'))
-            buf_yhc = YhCompress.compress(buf)
-            logger.error('org %s lz4 %s yhc %s' % (len(buf), len(buf_lz4), len(buf_yhc)))
-        #logger.error('\n'.join([str(r) for r in list_res])) 
-        return list_res
-    
     def getInfoById(self, list_id=range(100)):
         list_buf = redis_187.hmget(self.prefix, list_id)
         list_res = []
@@ -90,7 +75,7 @@ class InfoBatch:
                     list_info.append(buf)
                     pipeline_zero.hset(self.prefix, id, buf)
                     num_p += 1
-                if len(list_info) == 10000:
+                if len(list_info) == 100000:
                     logger.error('batchTransfer %s %s' % (num_p, buf))
                     pipeline_zero.execute()
                     ofh = open(Path('%s.part.%s' % (self.fileinfo, file_id)), 'w+')
