@@ -15,6 +15,16 @@ import YhLog, YhCompress, YhMongo, YhCrawler
 import YhTrieSeg, YhBitset
 
 logger = logging.getLogger(__file__)
+<<<<<<< HEAD
+=======
+
+redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock')
+
+
+
+
+   
+>>>>>>> 81e559041f01125699044a089316e6140d403291
     
 class Segmenter(object):
     def __init__(self, company='120ask', db='urlcontent', ifn='../data/120ask.db', ofn='../data/120ask.idx'):
@@ -24,6 +34,7 @@ class Segmenter(object):
         self.ifn = ifn
         self.ofn = ofn
         self.yhTrieSeg = YhTrieSeg.YhTrieSeg([Path(self.cwd, '../data/tag_120ask.txt')])
+<<<<<<< HEAD
         
     def run(self):
         list_file = Path(self.cwd, self.ifn).ancestor(1).listdir(pattern='120ask.db.part.*')
@@ -64,6 +75,28 @@ class Segmenter(object):
             logger.error('file error %s' % ifn)
             subprocess.call('rm -rf %s' % ifn, shell=True)
             
+=======
+    def run(self):
+        list_file = Path(self.cwd, self.ifn).ancestor(1).listdir(pattern='120ask.db.part.*')
+        logger.error('\n'.join(list_file))
+        for f in list_file[:3]:
+            dict_idx = defaultdict(set)
+            for l in open(f):
+                l = unicode(l.strip(), 'utf8', 'ignore')
+                if not l: continue
+                try:
+                    id, url, title, description, content = l.split('\t')[:5]
+                    list_s = self.yhTrieSeg.seg('%s\t%s' % (title, description))
+                    for s in list_s:
+                        dict_idx[s].add(int(id))
+                except:
+                    logger.error('error line %s' % l)
+            ofn = re.sub(r'.db.', r'.idx.', f)
+            cPickle.dump(dict_idx, open(ofn, 'w+'))
+            logger.error('idx len %s ifn %s ofn %s' % (len(dict_idx), f, ofn))
+                
+    
+>>>>>>> 81e559041f01125699044a089316e6140d403291
 if __name__=='__main__':
     p = os.fork()
     if p:

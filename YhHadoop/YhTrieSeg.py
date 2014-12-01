@@ -103,7 +103,7 @@ class YhTrieSeg:
                 
     def right_match(self, query=''):
         try:
-            logger.error('query %s' % query)
+            #logger.error('query %s' % query)
             #dict clue 
             list_res = []
             end = len(query)
@@ -111,7 +111,7 @@ class YhTrieSeg:
             while(end >= 2):
                 start = end - 1
                 for i in range(max(0, end - self.max_len), end):
-                    logger.error('subquery %s' % query[i:end])
+                    #logger.error('subquery %s' % query[i:end])
                     if(query[i:end] in self.dict_all):
                         start = i
                         break
@@ -130,7 +130,7 @@ class YhTrieSeg:
                 elif not YhChineseNorm.is_other(s):
                     list_res.append(s)
                 end = start
-                logger.error('|'.join(list_res))
+                #logger.error('|'.join(list_res))
             if end > 0 and query[:end] and not YhChineseNorm.is_other(query):
                 list_res.append(query[:end])
             
