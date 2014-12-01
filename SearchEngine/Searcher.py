@@ -18,27 +18,21 @@ import tornado.gen, tornado.web
 sys.path.append('../YhHadoop')
 import YhLog, YhMongo, YhTool, YhChineseNorm
 import YhTrieSeg, Info, Indexer
+from Redis_zero import redis_zero
 
 logger = logging.getLogger(__name__)
 cwd = Path(__file__).absolute().ancestor(1)
 mongo = YhMongo.yhMongo.mongo_cli
 yhTrieSeg = YhTrieSeg.YhTrieSeg(fn_domain=[Path(cwd, '../data/tag_120ask.txt')], fn_pic=Path(cwd, '../data/trieseg_120ask.pic'))
-redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
 
 
 class Searcher(object):
     def __init__(self, company='120ask', db='tag', cache_prefix='cache'):
         self.cwd = Path(__file__).absolute().ancestor(1)
         self.company = company
-        '''
-        self.db = mongo[db]
-        self.collection = self.db[company]
-        self.collection.ensure_index([('tag', 1)], unique=True,  background=True, dropDups =True)
-        self.ofh_tag = open(Path(self.cwd, 'tag_%s.txt' % company), 'w+')
-        '''
         self.cache_prefix = '%s:%s' % (cache_prefix, self.company)
     
-    def process(self, query='', start=0, num=10, cache=1):
+    def process(self, query='', start=0, num=10, cache=1, mark=1):
         try:
             if isinstance(query, str):
                 query = unicode(query, 'utf8', 'ignore')
@@ -57,7 +51,12 @@ class Searcher(object):
             dict_res={'status':2, 'errlog':traceback.format_exc()}
             logger.error(traceback.format_exc())
             return dict_res
-            
+    def mark_red(self, list_s=[], buf=''):
+        res_buf = buf
+        for s in list_s[:3]:
+            res_buf = re.sub(s, 'mr_begin%smr_end' % s, res_buf)
+        return res_buf
+        
     def get_cache(self, query='',  list_s=[], start=0, num=10, cache=1):
         res = redis_zero.get('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
         if res and cache:
@@ -81,10 +80,14 @@ class Searcher(object):
                     list_res.append(item)
             if list_res:
                 list_url = Info.Info().getInfoById(list_res)
+                for d in list_url:
+                    d['mark_red_title'] = self.mark_red(list_s, d['title'])
+                    d['mark_red_content'] = self.mark_red(list_s, d['content'])
             buf = simplejson.dumps({'list_url':list_url, 'num_url':len(list_url)})
             logger.error('lz4 test len[%s] lz4len[%s]' % (len(buf), len(lz4.dumps(buf))))
-            redis_zero.set('%s:%s' % (self.cache_prefix, '|'.join(list_s)), lz4.dumps(buf))
-            redis_zero.expire('%s:%s' % (self.cache_prefix, '|'.join(list_s)), 3600)
+            if list_url:
+                redis_zero.set('%s:%s' % (self.cache_prefix, '|'.join(list_s)), lz4.dumps(buf))
+                redis_zero.expire('%s:%s' % (self.cache_prefix, '|'.join(list_s)), 3600)
             return list_url[start:start+num], len(list_url)
             
     

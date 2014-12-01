@@ -99,7 +99,7 @@ def multi_app():
         ], **settings)
     http_server = HTTPServer(app)
     http_server.bind(port)
-    http_server.start()
+    http_server.start(10)
     logger.error('listen port %s' % port)
     IOLoop.instance().start()
         

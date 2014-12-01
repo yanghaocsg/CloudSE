@@ -15,13 +15,10 @@ sys.path.append('../YhHadoop')
 sys.path.append('../WebCrawler')
 import YhLog, YhMongo
 import AgentCrawler_360
-
+from Redis_zero import redis_zero
+import YhBitset
 
 logger = logging.getLogger(__file__)
-#mongo = YhMongo.yhMongo.mongo_cli
-#redis_zero = redis.Redis(port=7777, unix_socket_path='/tmp/redis.sock', db=0)
-#redis_187 = redis.Redis(host='219.239.89.187', port=7777)
-redis_zero = redis.Redis(host='219.239.89.186', port=7777)
 
 class Indexer(object):
     def __init__(self, company='120ask', db='tag', kv_prefix='se:kv', idx_prefix='idx'):
@@ -32,7 +29,7 @@ class Indexer(object):
         
     def save_kv(self, dict_kv={}):
         for k in dict_kv:
-            redis_zero.set('%s:%s' % (self.kv_prefix, k), cPickle.dumps(dict_kv[k]))
+            redis_zero.set('%s:%s' % (self.kv_prefix, k), ','.join(dict_kv[v]))
             redis_zero.expire('%s:%s' % (self.kv_prefix, k), 3600 * 24)
         logger.error('save_kv %s' % len(dict_kv))
         
@@ -40,8 +37,9 @@ class Indexer(object):
         list_id = []
         try:
             buf_q = redis_zero.get('%s:%s' % (self.kv_prefix, query))
-            list_id = cPickle.loads(buf_q)
+            list_id = buf_q.split(',')
         except:
+            redis_zero.delete('%s:%s' % (self.kv_prefix, query))
             logger.error('get_kv %s %s' % (query, traceback.format_exc()))
             len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
             logger.error('add_query %s %s' % (query,len_add))
@@ -49,94 +47,82 @@ class Indexer(object):
         return list_id, len(list_id)
         
     def process(self):
-        logger.error('begin process ' )
-        dict_company = {'name':'120ask', 'db_urlcontent':'urlcontent', 'prefix_db': 'tmp:db:%s', 'ofn_db':'../data/%s.db.%s','ofn_key_idx':'../data/%s.key.idx', 'ofn_content_idx':'../data/%s.content.idx', 'pattern_url_id':r'/(\d+?).htm', 'step':10000}
-        #Process(target=dump, args=(dict_company, )).start()
-        #self.merge()
-        #self.idx_to_bitmap()
-        self.bitmap_to_redis()
+        self.merge()
         
     def merge(self):
-        pattern_url_id = r'/(\d+?).htm'
-        dict_bitset = defaultdict(set)
-        for i in range(6000):
-            try:
-                dict_tmp = cPickle.load(open('../data/120ask.idx.%s' % i))
-                for k, set_v in dict_tmp.iteritems():
-                    set_t = set()
-                    for v in set_v:
-                        t = 0
-                        if unicode.isnumeric(v):
-                            t = int(v)
-                        elif v[:4]=='http':
-                            re_url_id = re.search(pattern_url_id, v)
-                            t = int(re_url_id.group(1))
-                        set_t.add(t)
-                    if k in dict_bitset:
-                        dict_bitset[k] |= set_t
-                    else:
-                        dict_bitset[k] = set_t
-                    #logger.error('%s\t%s' % (k, set_t))
-                logger.error('%s\t%s' % (i, len(dict_bitset)))
-            except:
-                logger.error('%s\t%s' % (i, traceback.format_exc()))
-                
-        cPickle.dump(dict_bitset, open('./test.idx', 'w+'))
-    
-    def idx_to_bitmap(self, start=0):
-        dict_bitset= cPickle.load(open('./test.idx'))
-        logger.error('dict_bitset %s' % len(dict_bitset))
-        dict_bitarray = {}
-        dict_bitarraybytes = {}
-        for k, set_v in dict_bitset.iteritems():
-            dict_bitarray[k] = lz4.dumps(cPickle.dumps(set_v))
-            logger.error('dict_bitarray %s' % len(dict_bitarray))
-            #dict_bitarraybytes[k] = bitarray_tmp.tobytes()
-        cPickle.dump(dict_bitarray, open('./test.bitarray', 'w+'))
-        #cPickle.dump(dict_bitarraybyte, open('./test.bitarraybyte', 'w+'))
-        logger.error('dict_bitarray %s ' % len(dict_bitarray))
-    
-    def bitmap_to_redis(self):
-        dict_bitmap = cPickle.load(open('./test.bitarray'))
+        list_file = Path(self.cwd, '../data/').listdir(pattern='120ask.idx.part.*')
+        
+        len_list_file = len(list_file)
+        id_file = 0
+        while id_file < len_list_file:
+            dict_idx = defaultdict(set)
+            for id in range(id_file, min(id_file+100, len_list_file)):
+                dict_sub = cPickle.load(open(list_file[id]))
+                for k in dict_sub:
+                    dict_idx[k] |= dict_sub[k]
+                logger.error('merge idx %s file %s len %s totallen %s' % (id, list_file[id], len(dict_sub), len(dict_idx)))
+            self.save_idx(dict_idx)
+            logger.error('merge files %s total %s' % (id_file, len_list_file))
+            id_file += 100
+            
+    def save_idx(self, dict_idx):
+        dict_bitset = {}
+        for k in dict_idx:
+            yhBitset = YhBitset.YhBitset()
+            list_idx = list(dict_idx[k])
+            list_idx.sort()
+            yhBitset.set_list(list_idx)
+            bs_old_str = redis_zero.get('%s:%s' % (self.idx_prefix, k))
+            if bs_old_str:
+                bs_old = YhBitset.YhBitset()
+                bs_old.frombytes(bs_old_str)
+                dict_bitset[k] = yhBitset.oritem(bs_old)
+            else:
+                dict_bitset[k] = yhBitset
+            
         i = 0
         pipeline = redis_zero.pipeline()
-        for k in dict_bitmap:
-            pipeline.set('%s:%s' % (self.idx_prefix, k), dict_bitmap[k])
+        for k in dict_bitset:
+            pipeline.set('%s:%s' % (self.idx_prefix, k), dict_bitset[k].tobytes())
             i+=1
             if i % 10000 == 1:
                 pipeline.execute()
-                logger.error('saved %s' % i)
+                logger.error('saved idx %s' % i)
         pipeline.execute()
         logger.error('saved all %s' % i)
     
     def parse_query(self, list_s=[u'品他病']):
-        set_docid = set()
-        if list_s:
-            for i, s in enumerate(list_s):
-                logger.error('%s:%s' % (self.idx_prefix, s))
-                try:
-                    if i == 0:
-                        str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
-                        if str_s: set_docid |= cPickle.loads(lz4.loads(str_s))
-                    else:
-                        str_s = redis_zero.get('%s:%s' % (self.idx_prefix, s))
-                        if str_s: set_docid &= cPickle.loads(lz4.loads(str_s))
-                except:
-                    logger.error('parse_query %s %s' % (s, traceback.format_exc()))
-                    return [], 0
-        list_docid = list(set_docid)
-        list_docid.reverse()
-        if len(list_s)>=2 and len(list_docid)<20:
-            set_new = cPickle.loads(lz4.loads(redis_zero.get('%s:%s' % (self.idx_prefix, list_s[0]))))
-            if set_new:
-                list_docid.extend([s for s in set_new if s not in set_docid])
+        list_bitset, list_docid = [], []
+        for s in list_s:
+            str_s = Redis_zero.redis_zero.get('%s:%s' % (self.idx_prefix, s))
+            if str_s:
+                yhBitset = YhBitset.YhBitset()
+                yhBitset.frombytes(str_s)
+                list_bitset.append(yhBitset)
+                logger.error('%s matched len %s' % (s, len(yhBitset.search())))
+            else:
+                logger.error('%s filtered' % s)
+        if list_bitset:
+            bitset = list_bitset[0]
+            for bs in list_bitset[1:]:
+                test = bitset.anditem(bs)
+                if len(test.search()) == 0:
+                    break
+                bitset = bitset.anditem(bs)
+                logger.error('bitset len %s' % len(bitset.search()))
+            list_docid = bitset.search()
+            list_docid.sort(reverse=True)
+        if len(list_docid)<10:
+            list_docid.extend(list_bitset[0].search())
         logger.error('parse_query seg %s  len %s' % ('|'.join(list_s), len(list_docid)))
         return list_docid[:200], len(list_docid)
         
 indexer = Indexer()
 
 if __name__=='__main__':
-    #Indexer().process() 
-    indexer.load_kv()
-    #Indexer().get_kv()
-    #indexer.parse_query()
+    p = os.fork()
+    if p:
+        sys.exit()
+    else:
+        indexer.process() 
+    
