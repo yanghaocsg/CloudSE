@@ -4,6 +4,9 @@ from tornado.wsgi import WSGIContainer
 from tornado.httpserver import HTTPServer
 from tornado.ioloop import IOLoop
 import tornado.gen, tornado.web
+import eventlet, urllib
+from eventlet.green import urllib2
+from eventlet import Timeout
 
 import sys, traceback, imp, os, subprocess, logging, datetime
 from unipath import Path
@@ -59,12 +62,15 @@ class restart_handler(tornado.web.RequestHandler):
     def get(self):
         try:
             logger.error('restart ok')  
+            self.write('%s restart begin' % os.getpid())
+            IOLoop.instance().stop()
+            for i in range(2):
+                with Timeout(0.1):
+                    logger.error('%s\t%s' % (os.getpid(), urllib2.urlopen('http://127.0.0.1:8888/restart').read()))
             self.finish()
-            '''p = subprocess.Popen('ps -ef | grep %s' % __file__)
-            logge.error(p.stdout)
-            pid = p.stdout.split(' ')[1]
-            str_restart = 'python  %s' % Path(Path(__file__).ancestor(1), str_process)
-            p = subprocess.call(str_restart, stdout= None, shell=True)
+            '''
+            IOLoop.instance().stop()
+            subprocess.call('supervisorctl restart se', shell=True)
             '''
         except:
             msg_err = traceback.format_exc()
@@ -99,13 +105,15 @@ def multi_app():
         ], **settings)
     http_server = HTTPServer(app)
     http_server.bind(port)
-    http_server.start(10)
+    http_server.start(3)
     logger.error('listen port %s' % port)
     IOLoop.instance().start()
+    
         
         
 if __name__ == '__main__':
-    pid = os.fork()
+    '''pid = os.fork()
     if(pid >0):
         os._exit(0)
+    '''
     multi_app()

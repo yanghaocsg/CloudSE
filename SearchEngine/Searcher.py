@@ -17,13 +17,13 @@ import tornado.gen, tornado.web
 #self module
 sys.path.append('../YhHadoop')
 import YhLog, YhMongo, YhTool, YhChineseNorm
-import YhTrieSeg, Info, Indexer
+import YhTrieSeg, Info, Indexer, Query
 from Redis_zero import redis_zero
 
 logger = logging.getLogger(__name__)
 cwd = Path(__file__).absolute().ancestor(1)
 mongo = YhMongo.yhMongo.mongo_cli
-yhTrieSeg = YhTrieSeg.YhTrieSeg(fn_domain=[Path(cwd, '../data/tag_120ask.txt')], fn_pic=Path(cwd, '../data/trieseg_120ask.pic'))
+
 
 
 class Searcher(object):
@@ -36,9 +36,7 @@ class Searcher(object):
         try:
             if isinstance(query, str):
                 query = unicode(query, 'utf8', 'ignore')
-            query = YhChineseNorm.uniform(query)
-            list_s = yhTrieSeg.seg(query)
-            logger.error('query %s %s' % (query, '|'.join(list_s)))
+            list_s = Query.query.run(query)
             list_url, num_url = [], 0
             if list_s:
                 list_url, num_url = self.get_cache(query, list_s, start, num, cache)
