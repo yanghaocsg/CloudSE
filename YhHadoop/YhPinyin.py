@@ -7,7 +7,7 @@ from unipath import Path
 
 #self module
 import YhLog, YhTool, YhChineseNorm
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__file__)
 
 
 class YhPinyin:
@@ -25,7 +25,7 @@ class YhPinyin:
             if(len(pars) < 2):
                 continue
             self.dict_pinyin[pars[0]] = pars[1:]
-        logger.error('dict_pinyin len [%s]' % len(self.dict_pinyin))
+        #logger.error('dict_pinyin len [%s]' % len(self.dict_pinyin))
     
     def line2py_list(self, line=u'一石二鸟'):
         list_py = []
