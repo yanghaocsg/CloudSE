@@ -32,14 +32,15 @@ class Searcher(object):
         self.company = company
         self.cache_prefix = '%s:%s' % (cache_prefix, self.company)
     
-    def process(self, query='', start=0, num=10, cache=1, mark=1):
+    def process(self, query='', start=0, num=10, cache=1, mark=1, st=1):
         try:
             if isinstance(query, str):
                 query = unicode(query, 'utf8', 'ignore')
             list_s = Query.query.run(query)
             list_url, num_url = [], 0
             if list_s:
-                list_url, num_url = self.get_cache(query, list_s, start, num, cache)
+                logger.error('process st %s' % st) 
+                list_url, num_url = self.get_cache(query, list_s, start, num, cache, st)
             else:
                 raise
             logger.error('list_url %s num_url %s' % (len(list_url), num_url))
@@ -55,13 +56,14 @@ class Searcher(object):
             res_buf = re.sub(s, 'mr_begin%smr_end' % s, res_buf)
         return res_buf
         
-    def get_cache(self, query='',  list_s=[], start=0, num=10, cache=1):
+    def get_cache(self, query='',  list_s=[], start=0, num=10, cache=1, st=1):
         res = redis_zero.get('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
+        list_url = []
         if res and cache:
             try:
                 logger.error('get_cache cached [%s]' % '|'.join(list_s))
                 dict_res = simplejson.loads(lz4.loads(res))
-                return dict_res['list_url'][start:start+num], len(dict_res['list_url'])
+                list_url = dict_res['list_url']
             except:
                 redis_zero.delete('%s:%s' % (self.cache_prefix, '|'.join(list_s)))
                 raise
@@ -86,7 +88,31 @@ class Searcher(object):
             if list_url:
                 redis_zero.set('%s:%s' % (self.cache_prefix, '|'.join(list_s)), lz4.dumps(buf))
                 redis_zero.expire('%s:%s' % (self.cache_prefix, '|'.join(list_s)), 3600)
-            return list_url[start:start+num], len(list_url)
+        list_res_st = []
+        logger.error('get_cache st %s' % st)
+        if st==4:
+            list_res_st = list_url
+        elif st == 3:
+            for l in list_url:
+                d = {}
+                d['id'] = l['id']
+                d['title'] = l['title']
+                d['content'] = l['content']
+                list_res_st.append(d)
+        elif st == 2:
+            for l in list_url:
+                d = {}
+                d['id'] = l['id']
+                d['title'] = l['title']
+                list_res_st.append(d)
+        elif st == 1:
+            
+            for l in list_url:
+                d = {}
+                d['id'] = l['id']
+                list_res_st.append(d)
+        logger.error('get_cache list_res_st %s' % list_res_st[:3])
+        return list_res_st[start:start+num], len(list_res_st)
             
     
         
@@ -96,10 +122,11 @@ class Search_Handler(tornado.web.RequestHandler):
     @tornado.gen.engine
     def get(self):
         try:
-            dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n', 'cache'], ['', '0', '20', '1'] )
-            query, start, num,cache = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n']), int(dict_qs['cache'])
-            logger.error('%s\t%s\t%s\t%s' % (query, start, num, cache))
-            self.write(simplejson.dumps(searcher.process(query, start, num, cache)))
+            dict_qs = YhTool.yh_urlparse_params(self.request.uri, ['query', 's', 'n', 'cache', 'st'], ['', '0', '20', '1', '4'] )
+            query, start, num,cache, st = dict_qs['query'], int(dict_qs['s']), int(dict_qs['n']), int(dict_qs['cache']), int(dict_qs['st'])
+            logger.error('%s\t%s\t%s\t%s\t%s' % (query, start, num, cache, st))
+            
+            self.write(simplejson.dumps(searcher.process(query, start, num, cache, st=st)))
         except Exception:
             logger.error('svs_handler error time[%s][%s][%s]'% (self.request.request_time(), traceback.format_exc(), self.request.uri))
             self.write(simplejson.dumps({'status':1, 'errlog':traceback.format_exc(), 'url':self.request.uri}))
