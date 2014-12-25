@@ -41,10 +41,10 @@ class Indexer(object):
             list_id = buf_q.split(',')
         except:
             redis_zero.delete('%s:%s' % (self.kv_prefix, query))
-            logger.error('get_kv %s %s' % (query, traceback.format_exc()))
-            len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
-            logger.error('add_query %s %s' % (query,len_add))
-        logger.error('get_kv %s %s' % (query, ','.join(list_id)))
+            #logger.error('get_kv %s %s' % (query, traceback.format_exc()))
+            #len_add = AgentCrawler_360.agentCrawler_360.add_query(query)
+            #logger.error('add_query %s %s' % (query,len_add))
+        #logger.error('get_kv %s %s' % (query, ','.join(list_id)))
         return list_id, len(list_id)
         
     def process(self):
@@ -113,7 +113,8 @@ class Indexer(object):
     def parse_query(self, list_s=[u'品他病']):
         list_id = []
         list_id.extend(self.match(list_s, self.title_prefix))
-        list_id.extend(self.match(list_s, self.idx_prefix))
+        if len(list_id)<10:
+            list_id.extend(self.match(list_s, self.idx_prefix))
         if len(list_id)<10:
             list_id.extend(self.match_fuzzy(list_s, self.title_prefix))
         return list_id, len(list_id)
@@ -130,6 +131,7 @@ class Indexer(object):
                 #logger.error('%s matched len %s' % (s, len(yhBitset.search())))
             else:
                 logger.error('%s filtered' % s)
+        bitset = YhBitset.YhBitset()
         if list_bitset:
             bitset = list_bitset[0]
             for bs in list_bitset[1:]:
@@ -139,8 +141,8 @@ class Indexer(object):
                 bitset = test
                 
         list_docid = bitset.search(200)
-            #list_docid.sort(reverse=True)
-        logger.error('match_title seg %s  len %s ids %s' % ('|'.join(list_s), len(list_docid), list_docid[:3]))
+        #list_docid.sort(reverse=True)
+        #logger.error('match_title seg %s  len %s ids %s' % ('|'.join(list_s), len(list_docid), list_docid[:3]))
         return list_docid[:200]
     
     def match_fuzzy(self, list_s=[], prefix=''):
@@ -154,7 +156,7 @@ class Indexer(object):
                 break
             else:
                 logger.error('%s filtered' % s)
-        logger.error('match_title seg %s  len %s ids %s' % ('|'.join(list_s), len(list_docid), list_docid[:3]))
+        #logger.error('match_title seg %s  len %s ids %s' % ('|'.join(list_s), len(list_docid), list_docid[:3]))
         return list_docid[:200]
     
     

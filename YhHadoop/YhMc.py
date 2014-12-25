@@ -6,8 +6,9 @@ import ConfigParser
 import hashlib,traceback
 import memcache
 from unipath import Path
+import lz4
 
-import YhLog, YhTool, YhCompress
+import YhLog, YhTool
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARN)
 
@@ -34,14 +35,14 @@ class YhMc:
             
     def add_cache(self, query, res):
         query_md5 = get_md5(query)
-        self.mc.set(query_md5, YhCompress.compress(res), 600)
+        self.mc.set(query_md5, res, 600)
         #logger.error('mc add cache [%s]' % query)
     def get_cache(self, query):
         query_md5 = get_md5(query)
         try:
             buf_comp = self.mc.get(query_md5)
             if buf_comp and buf_comp is not None:
-                return YhCompress.decompress(buf_comp)
+                return buf_comp
         except:
             logger.error('mc not mached [%s][%s]' % (query, traceback.format_exc()))
         return ''

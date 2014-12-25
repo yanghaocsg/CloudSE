@@ -18,7 +18,7 @@ logger = logging.getLogger(__file__)
 def distribute(ifn=[]):
     logger.error(ifn)
     list_server = []
-    list_server.extend(['219.239.89.185','219.239.89.186', '219.239.89.187', '219.239.89.189'])
+    list_server.extend(['219.239.89.185','219.239.89.186', '219.239.89.188', '219.239.89.189'])
     dest_path = Path(__file__).absolute().ancestor(1)
     for f in ifn:
         for s in list_server:
