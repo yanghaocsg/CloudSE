@@ -14,7 +14,7 @@ import tornado.gen, tornado.web
 
 #self module
 sys.path.append('../YhHadoop')
-import YhLog, YhMongo, YhTool
+import YhLog, YhTool
 import Redis_zero
 logger = logging.getLogger(__file__)
 

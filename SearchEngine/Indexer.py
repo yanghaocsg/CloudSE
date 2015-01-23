@@ -13,7 +13,7 @@ import lz4
 #self module
 sys.path.append('../YhHadoop')
 sys.path.append('../WebCrawler')
-import YhLog, YhMongo
+import YhLog
 import AgentCrawler_360
 from Redis_zero import redis_zero
 import YhBitset
@@ -136,11 +136,11 @@ class Indexer(object):
             bitset = list_bitset[0]
             for bs in list_bitset[1:]:
                 test = bitset.anditem(bs)
-                if len(test.search(200))<10:
+                if len(test.search(200, 1))<10:
                     break
                 bitset = test
                 
-        list_docid = bitset.search(200)
+        list_docid = bitset.search(200, 1)
         #list_docid.sort(reverse=True)
         #logger.error('match_title seg %s  len %s ids %s' % ('|'.join(list_s), len(list_docid), list_docid[:3]))
         return list_docid[:200]
@@ -152,7 +152,7 @@ class Indexer(object):
             if str_s:
                 yhBitset = YhBitset.YhBitset()
                 yhBitset.frombytes(str_s)
-                list_docid = yhBitset.search(200)
+                list_docid = yhBitset.search(200, 1)
                 break
             else:
                 logger.error('%s filtered' % s)

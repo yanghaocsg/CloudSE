@@ -16,7 +16,7 @@ sys.path.insert(0, "../YhHadoop")
 sys.path.append('../Suggest')
 #self module
 import YhLog
-import Searcher, SugIndexer
+import Searcher, SugIndexer, Restart
 logger = logging.getLogger(__name__)
 
 logger.error('global init start [%s]\n====================='%datetime.datetime.now())
@@ -61,17 +61,9 @@ class restart_handler(tornado.web.RequestHandler):
     @tornado.gen.engine
     def get(self):
         try:
-            logger.error('restart ok')  
-            self.write('%s restart begin' % os.getpid())
-            IOLoop.instance().stop()
-            for i in range(2):
-                with Timeout(0.1):
-                    logger.error('%s\t%s' % (os.getpid(), urllib2.urlopen('http://127.0.0.1:8888/restart').read()))
+            Restart.process(__file__)
             self.finish()
-            '''
-            IOLoop.instance().stop()
-            subprocess.call('supervisorctl restart se', shell=True)
-            '''
+            
         except:
             msg_err = traceback.format_exc()
             logger.error('restart failed, %s' % msg_err) 

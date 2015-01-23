@@ -16,7 +16,7 @@ import tornado.gen, tornado.web
 
 #self module
 sys.path.append('../YhHadoop')
-import YhLog, YhMongo, YhTool, YhChineseNorm, YhMc
+import YhLog, YhTool, YhChineseNorm, YhMc
 import YhTrieSeg, Info, Indexer, Query
 from Redis_zero import redis_zero
 
@@ -113,7 +113,7 @@ class Searcher(object):
                 d = {}
                 d['id'] = l['id']
                 list_res_st.append(d)
-        #logger.error('get_cache list_res_st %s' % list_res_st[:3])
+        logger.error('get_cache list_res_st %s' % list_res_st[:3])
         return list_res_st[start:start+num], num_url
     
         
@@ -160,4 +160,4 @@ class SearchHtml_Handler(tornado.web.RequestHandler):
         finally:
             self.finish()            
 if __name__=='__main__':
-    Searcher().process(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
+    Searcher().process(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), cache=0)

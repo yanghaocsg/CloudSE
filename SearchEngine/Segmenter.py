@@ -11,7 +11,7 @@ from unipath import Path
 import cPickle
 sys.path.append('../YhHadoop')
 
-import YhLog, YhCompress, YhMongo, YhCrawler
+import YhLog, YhCompress, YhCrawler
 import YhTrieSeg, YhBitset
 
 logger = logging.getLogger(__file__)
